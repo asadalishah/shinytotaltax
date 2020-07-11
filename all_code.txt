@@ -1,0 +1,297 @@
+# tax insights
+
+library(shiny)
+library(dplyr)
+library(ggplot2)
+library(hrbrthemes)
+library(lubridate)
+library(plotly)
+library(gt)
+
+# read data
+temp <- read.table("ptax_upto2017.csv", sep = ",", header = TRUE, stringsAsFactors = FALSE)
+
+# converting house to factor
+temp$House <- factor(temp$House, levels = c("Senate", 
+                                            "National Assembly", 
+                                            "Balochistan Assembly", 
+                                            "KPK Assembly",
+                                            "Punjab Assembly",
+                                            "Sindh Assembly"))
+
+# year to well year
+temp$Year <- year(ymd(as.Date(ISOdate(temp$Year, 6, 30))))
+
+
+# Define UI for application that draws a histogram
+ui <- fluidPage(
+
+    # Application title
+    titlePanel("Parliamentarians' Tax Directory Analysis"),
+
+    # Sidebar with a slider input for number of bins 
+    sidebarLayout(
+        sidebarPanel(
+            checkboxGroupInput(inputId = "house",
+                               label = h3("Choose a house"),
+                               choices = list("Senate" = "Senate",
+                                              "National Assembly" = "National Assembly",
+                                              "Balochistan Assembly" = "Balochistan Assembly",
+                                              "KPK Assembly" = "KPK Assembly",
+                                              "Punjab Assembly" = "Punjab Assembly",
+                                              "Sindh Assembly" = "Sindh Assembly"),
+                               selected = "Senate")),
+        
+        # Show a plot of the generated distribution
+        mainPanel(tabsetPanel(
+            # tabPanel("Total Tax", plotOutput("plot1")),
+            tabPanel("Total Income Tax", plotlyOutput("plot1")),
+            tabPanel("Yearly Change", plotOutput("plot2")),
+            tabPanel("Data", tableOutput("tab1")),
+            tabPanel("Key Statistics", tableOutput("tab4")),
+            tabPanel("Top-5", tableOutput("tab2")), # numbers coming out strangely
+            tabPanel("Zero-Taxers Numbers", plotOutput("plot3")),
+            tabPanel("Zero-Taxers", tableOutput("tab3")),
+            tabPanel("Distribution", plotlyOutput("plot4")), # distribution
+            tabPanel("Contribution", plotlyOutput("plot5")) # contribution
+            # tabPanel("Contributoin", plotOutput("plot5"))
+        )
+    )
+))
+
+# Define server logic 
+server <- function(input, output) {
+
+    output$plot1 <- renderPlotly({
+        chosenVal <- paste(input$house)
+        total <- temp %>%
+            filter(House %in% chosenVal) %>%
+            group_by(Year, House) %>%
+            summarize(Total = sum(IncomeTax)/1000000) %>%
+            select(Year, House, Total)
+
+        plot1 <- ggplot(total, aes(fill=House, x=Year, y=Total)) +
+            geom_bar(position="stack", stat = "identity") +
+            scale_y_continuous() +
+            labs(x="Year", y="Total Income Tax",
+                 title="Total Income Tax Paid by Parlimentarians",
+                 subtitle="Million Rupees",
+                 caption="Source: FBR's Parliamentarians' Tax Directory") +
+            theme_ipsum_rc(grid="Y")
+        
+        plot1 <- ggplotly(plot1)
+        plot1
+        
+        })
+        
+    # overall tax paid
+    # output$plot1 <- renderPlot({
+    #     chosenVal <- paste(input$house)
+    #     total <- temp %>% 
+    #         filter(House %in% chosenVal) %>% 
+    #         #filter(House %in% c(input$house)) %>% 
+    #         group_by(Year, House) %>% 
+    #         summarize(Total = sum(IncomeTax)/1000000) %>% 
+    #         select(Year, House, Total)
+    #     
+    #     ggplot(total, aes(fill=House, x=Year, y=Total)) +
+    #         # geom_col() +
+    #         geom_bar(position="stack", stat = "identity") +
+    #         scale_y_continuous() +
+    #         #geom_text(aes(label=total), nudge_y=18) +
+    #         labs(x="Year", y="Total Income Tax",
+    #              title="Total Income Tax Paid by Parlimentarians",
+    #              subtitle="Million Rupees",
+    #              caption="Source: FBR's Parliamentarians' Tax Directory") + 
+    #         theme_ipsum_rc(grid="Y") #+
+    #         #theme(axis.text.y=element_blank())
+    #     })
+    
+    # change
+    output$plot2 <- renderPlot({
+        chosenVal <- paste(input$house)
+        
+        change <- temp %>% 
+            filter(House %in% chosenVal) %>% 
+            group_by(House, Year) %>%
+            summarize(Total = sum(IncomeTax)/1000000) %>% 
+            mutate(Change = Total / lag(Total) * 100) %>% 
+            mutate(Change = ifelse(is.na(Change), 100, Change))
+        
+        ggplot(change, aes(x = Year, y = Change)) + 
+            geom_smooth(aes(colour = House)) +
+            geom_point(size = 4) + 
+            scale_colour_viridis_d(name = "") +
+            theme_ipsum_rc() + 
+            theme(legend.position = "top", legend.text=element_text(size=15)) +
+            ggtitle("Change in Income Tax Paid Year on Year", subtitle = "% Change; Year 1 Indexed to 100") +
+            labs(x = "Years", y = "% Change from Previous Year", 
+                 caption = "Source: FBR's Parliamentarians' Tax Directory") + 
+            scale_y_continuous(labels = scales::comma)
+    })
+    
+    # zero tax plot 3
+    output$plot3 <- renderPlot({
+        chosenVal <- paste(input$house)
+        zero <- temp %>% 
+            filter(House %in% chosenVal) %>% 
+            filter(IncomeTax == 0) %>% 
+            group_by(Year, House) %>%
+            tally(., NULL)
+        
+        ggplot(zero, aes(fill=House, x=Year, y=n)) +
+            # geom_col() +
+            geom_bar(position="stack", stat = "identity") +
+            scale_y_continuous() +
+            #geom_text(aes(label=total), nudge_y=18) +
+            labs(x="Year", y="Zero Income Tax Payers",
+                 title="Number of Zero Income Tax Payers",
+                 subtitle="Number of Parlimentarians Paying Zero Income Tax",
+                 caption="Source: FBR's Parliamentarians' Tax Directory") + 
+            theme_ipsum_rc(grid="Y") #+
+        #theme(axis.text.y=element_blank())
+    })
+    
+    # # distributoin
+    # output$plot4 <- renderPlot({
+    #     chosenVal <- paste(input$house)
+    #     dist <- temp %>% 
+    #         filter(House %in% chosenVal, Year == 2017)
+    #     
+    #     ggplot(data = dist, aes(x = reorder(Name, IncomeTax),
+    #                          y = log10(IncomeTax), fill = House)) +
+    #         geom_col() +
+    #         theme(axis.text.x = element_blank())
+    # })
+    
+    # distributoin
+    output$plot4 <- renderPlotly({
+        chosenVal <- paste(input$house)
+        dist <- temp %>% 
+            filter(House %in% chosenVal, Year == 2017) %>% 
+            ggplot(data = ., aes(x = reorder(Name, IncomeTax),
+                            y = IncomeTax/1000000)) +
+            geom_col() +
+            # theme(legend.position = "bottom", legend.text=element_text(size=15)) +
+            labs(x="Individual Assembly Members", y="Income Tax Paid",
+                 title="Income Tax Paid",
+                 subtitle="Million Rupees",
+                 caption="Source: FBR's Parliamentarians' 2017 Tax Directory") + 
+            theme(axis.text.x = element_blank())
+            
+        dist <- ggplotly(dist)
+        dist
+    })
+    
+    # # Contribution
+    # output$plot5 <- renderPlot({
+    #     chosenVal <- paste(input$house)
+    #     contrib <- temp %>% 
+    #         filter(House %in% chosenVal, Year == max(as.numeric(Year))) %>% 
+    #         mutate(propTax = IncomeTax/sum(IncomeTax)*100) %>%
+    #         arrange(-propTax) %>% 
+    #         mutate(cumSumTax = cumsum(propTax)) %>% 
+    #         mutate(propMember = 1/n()*100) %>%
+    #         mutate(cumSumMember = cumsum(propMember)) %>% 
+    #         select(Name, cumSumTax, cumSumMember, IncomeTax)
+    #     
+    #     ggplot(contrib, aes(x=cumSumMember, y=cumSumTax)) +
+    #         geom_line() +
+    #         labs(x="% Members", y="% Tax",
+    #              title="Tax Contributions",
+    #              subtitle="this and that ",
+    #              caption="Source: FBR Tax Directory") + 
+    #         theme_ipsum_rc(grid="XY")
+    #     
+    # })
+    
+    # Contribution
+    output$plot5 <- renderPlotly({
+        chosenVal <- paste(input$house)
+        contrib <- temp %>% 
+            filter(House %in% chosenVal, Year == max(as.numeric(Year))) %>% 
+            mutate(propTax = IncomeTax/sum(IncomeTax)*100) %>%
+            arrange(-propTax) %>% 
+            mutate(cumSumTax = cumsum(propTax)) %>% 
+            mutate(propMember = 1/n()*100) %>%
+            mutate(cumSumMember = cumsum(propMember)) %>% 
+            select(Name, cumSumTax, cumSumMember, IncomeTax)
+        
+        plot5 <- ggplot(contrib, aes(x=cumSumMember, y=cumSumTax)) +
+            geom_line() +
+            labs(x="% Members", y="% Tax",
+                 title="Income Tax Contributions Ratio",
+                 subtitle="% Contributions to Income Tax",
+                 caption="Source: FBR's Parliamentarians' 2017 Tax Directory") + 
+            theme_ipsum_rc(grid="XY")
+    
+        plot5 <- ggplotly(plot5)
+        plot5
+        
+    })
+    
+    # tax data
+    output$tab1 <- renderTable({
+        chosenVal <- paste(input$house)
+        total <- temp %>% 
+            filter(House %in% chosenVal) %>% 
+            #filter(House %in% c(input$house)) %>% 
+            group_by(House, Year) %>% 
+            summarize(TotalMillionPKR = sum(IncomeTax)/1000000) %>% 
+            select(Year, House, TotalMillionPKR)
+        
+        total %>% 
+            gt() %>% 
+            tab_header(
+                title = "Income Tax Paid",
+                subtitle = "Million Rupees"
+            )
+    })
+    
+    # top-n
+    output$tab2 <- renderTable({
+        chosenVal <- paste(input$house)
+        top <- temp %>% 
+            filter(House %in% chosenVal) %>% 
+            group_by(House, Year) %>% 
+            top_n(., 5, IncomeTax) %>%
+            arrange(., -IncomeTax) %>% 
+            select(Year, House, Name, IncomeTax)
+        
+        top %>% 
+            gt()
+    })
+    
+    # zero taxers who
+    output$tab3 <- renderTable({
+        chosenVal <- paste(input$house)
+        zerowho <- temp %>% 
+            ungroup() %>% 
+            filter(House %in% chosenVal) %>% 
+            filter(IncomeTax == 0) %>% 
+            arrange(Year, House, IncomeTax) %>% 
+            select(Year, House, Name, IncomeTax)
+        
+        zerowho %>% 
+            gt()
+    })
+    
+    # key statistics
+    output$tab4 <- renderTable({
+        chosenVal <- paste(input$house)
+        key <- temp %>%
+            filter(House %in% chosenVal) %>% 
+            group_by(House, Year) %>%
+            summarize("Average Income Tax" = mean(IncomeTax),
+                      "Median Income Tax" = median(IncomeTax),
+                      "Max Income Tax" = max(IncomeTax),
+                      "St. Dev Income Tax" = sd(IncomeTax))
+        
+        key %>% 
+            gt()
+    })
+    
+}
+
+# Run the application 
+shinyApp(ui = ui, server = server)
