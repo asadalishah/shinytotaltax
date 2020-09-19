@@ -10,7 +10,7 @@ library(plotly)
 library(gt)
 
 # read data
-temp <- read.table("ptax_upto2017.csv", sep = ",", header = TRUE, stringsAsFactors = FALSE)
+temp <- read.table("ptax_upto2018.csv", sep = ",", header = TRUE, stringsAsFactors = FALSE)
 
 # converting house to factor
 temp$House <- factor(temp$House, levels = c("Senate", 
@@ -49,8 +49,8 @@ ui <- fluidPage(
             tabPanel("Yearly Change", plotlyOutput("plot2")),
             tabPanel("Zero Income Tax Payers", plotlyOutput("plot3")),
             tabPanel("Names of Zero Taxer", tableOutput("tab3")),
-            tabPanel("Income Tax Distribution", plotlyOutput("plot4")), # distribution
-            tabPanel("Income Tax Distribution - tst", plotOutput("plot_tst")), # distribution
+            # tabPanel("Income Tax Distribution", plotlyOutput("plot4")), # distribution
+            tabPanel("Income Tax Distribution", plotOutput("plot_tst")), # distribution
             tabPanel("Contribution Ratio", plotlyOutput("plot5")), # contribution
             tabPanel("Top-10 Tax Payers", tableOutput("tab2")), # numbers coming out strangely
             tabPanel("Top-10 Contributions", plotlyOutput("plot6")),
@@ -166,7 +166,7 @@ server <- function(input, output) {
     output$plot4 <- renderPlotly({
         chosenVal <- paste(input$house)
         dist <- temp %>% 
-            filter(House %in% chosenVal, Year == 2017)
+            filter(House %in% chosenVal, Year == 2018)
         
         x <- dist %>% top_n(., 10, IncomeTax)
         
@@ -175,9 +175,9 @@ server <- function(input, output) {
                                 label = Name)) +
             geom_col(color = "slategray1", fill="steelblue1") +
             labs(x="Individual Assembly Members", y="Income Tax Paid (Million PKR)",
-                 title="Income Tax Paid by Each Assembly Member in 2017",
+                 title="Income Tax Paid by Each Assembly Member in 2018",
                  subtitle="Million Rupees",
-                 caption="Source: FBR's Parliamentarians' 2017 Tax Directory") + 
+                 caption="Source: FBR's Parliamentarians' 2018 Tax Directory") + 
             theme(axis.text.x = element_blank()) +
             theme_ipsum_rc() +
             ggrepel::geom_label_repel(data = x, aes(label = Name),
@@ -193,7 +193,7 @@ server <- function(input, output) {
     output$plot_tst <- renderPlot({
         chosenVal <- paste(input$house)
         dist <- temp %>% 
-            filter(House %in% chosenVal, Year == 2017)
+            filter(House %in% chosenVal, Year == 2018)
         
         x <- dist %>% top_n(., 10, IncomeTax)
         
@@ -202,15 +202,16 @@ server <- function(input, output) {
                                 label = Name)) +
             geom_col(color = "slategray1", fill="steelblue1") +
             labs(x="Individual Assembly Members", y="Income Tax Paid (Million PKR)",
-                 title="Income Tax Paid by Each Assembly Member in 2017",
+                 title="Income Tax Paid by Each Assembly Member in 2018",
                  subtitle="Million Rupees",
-                 caption="Source: FBR's Parliamentarians' 2017 Tax Directory") + 
+                 caption="Source: FBR's Parliamentarians' 2018 Tax Directory") + 
             theme(axis.text.x = element_blank()) +
             theme_ipsum_rc() +
             ggrepel::geom_label_repel(data = x, aes(label = Name),
                                       box.padding   = 0.1, 
                                       point.padding = 0.5,
-                                      segment.color = 'grey50')
+                                      segment.color = 'grey50') +
+            theme(axis.text.x = element_blank())
         
     })
     
@@ -230,9 +231,9 @@ server <- function(input, output) {
         plot5 <- ggplot(contrib, aes(x=cumSumMember, y=cumSumTax)) +
             geom_line(color = "steelblue1", size = 1.2) +
             labs(x="% Members of the House(s)", y="% of Total Income Tax Paid by the House(s)",
-                 title="Income Tax Contributions Ratio for 2017",
+                 title="Income Tax Contributions Ratio for 2018",
                  subtitle="% Contributions to Income Tax",
-                 caption="Source: FBR's Parliamentarians' 2017 Tax Directory") + 
+                 caption="Source: FBR's Parliamentarians' 2018 Tax Directory") + 
             scale_x_continuous(limits=c(-5, 100), labels = scales::comma) +
             scale_y_continuous(limits=c(-5, 100), labels = scales::comma) +
             theme_ipsum_rc(grid="XY")
@@ -266,7 +267,7 @@ server <- function(input, output) {
             filter(House %in% chosenVal) %>% 
             group_by(House, Year) %>% 
             top_n(., 10, IncomeTax) %>%
-            arrange(., -IncomeTax) %>% 
+            arrange(., -Year, House, -IncomeTax) %>% 
             select(Year, House, Name, IncomeTax)
         
         top %>% 

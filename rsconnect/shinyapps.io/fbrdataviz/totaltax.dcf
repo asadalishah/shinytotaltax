@@ -1,0 +1,13 @@
+name: totaltax
+title: totaltax
+username:
+account: fbrdataviz
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 2844002
+bundleId: 3646587
+url: https://fbrdataviz.shinyapps.io/totaltax/
+when: 1600517619.96844
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: ptax_upto2017.csv
